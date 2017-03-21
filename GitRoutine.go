@@ -10,8 +10,6 @@ import (
 
 	"bytes"
 
-	"io/ioutil"
-
 	"github.com/jroimartin/gocui"
 )
 
@@ -20,6 +18,7 @@ const summaryView string = "summaryView"
 const terminalView string = "terminalView"
 const repositoryNameView string = "repositoryNameView"
 const branchNameView string = "branchNameView"
+const logNameView string = "logNameView"
 
 type UIManager struct {
 	configuration
@@ -71,6 +70,7 @@ func main() {
 		p, err := g.View(summaryView)
 		repoNameView, err := g.View(repositoryNameView)
 		branchView, err := g.View(branchNameView)
+		logView, err := g.View(logNameView)
 		if err != nil {
 			return err
 		}
@@ -88,6 +88,7 @@ func main() {
 				branchView.Clear()
 				fmt.Fprint(branchView, "Current branch: ")
 				executeCommand(branchView, "git > rev-parse --abbrev-ref HEAD")
+				executeCommand(logView, "git > -c color.ui=always log --all --decorate --oneline --graph")
 			}
 		}
 
@@ -137,7 +138,6 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 		for _, repo := range mgr.Repositories {
 			fmt.Fprintln(v, repo.Name)
 		}
-
 	}
 
 	if v, err := g.SetView(summaryView, ((maxX/2)/2)+1, 0, maxX-1, maxY/2); err != nil {
@@ -169,13 +169,13 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 		fmt.Fprintln(v, "Current branch:")
 	}
 
-	/*f v, err := g.SetView("branches", (maxX+((maxX/2)/2)+1)/2+1, (maxY/2)+4, maxX-1, (maxY - 5)); err != nil {
+	if v, err := g.SetView(logNameView, ((maxX/2)/2)+1, (maxY/2)+4, maxX-1, (maxY - 5)); err != nil {
 
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		fmt.Fprintln(v, "Current branch:")
-	}*/
+		v.Title = "Log"
+	}
 
 	if v, err := g.SetView(terminalView, ((maxX/2)/2)+1, maxY-4, maxX-1, maxY-2); err != nil {
 
@@ -187,7 +187,6 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 		v.Title = "Terminal"
 		fmt.Fprintln(v, "git > ")
 		v.SetCursor(6, 0)
-
 	}
 
 	g.SetCurrentView(terminalView)
@@ -206,9 +205,6 @@ func executeCommand(view *gocui.View, command string) error {
 	s := strings.Split(command, " ")
 
 	cmd := "git"
-	//fmt.Fprintln(view, "The command is: "+cmd)
-	//args := []string{"--version"}
-	//args := []string{}
 
 	execCmd := exec.Command(cmd, s[2:]...)
 	execCmd.Stderr = &errOutput
@@ -216,14 +212,12 @@ func executeCommand(view *gocui.View, command string) error {
 
 	err = execCmd.Run()
 	if err != nil {
-		fmt.Fprintln(view, fmt.Sprint(err)+" : "+errOutput.String())
+		log.Panicln(err)
 		return nil
-		//os.Exit(1)
 	}
 
-	//fmt.Fprintln(view, "Executing "+command)
 	fmt.Fprintln(view, output.String())
-	//fmt.Fprintln(v, "Something happened")
+
 	return nil
 }
 
@@ -247,17 +241,4 @@ func loadConfiguration() (configuration, error) {
 	}
 
 	return configuration, nil
-}
-
-func loadDirectory(view *gocui.View, dir string) {
-
-	folders, err := ioutil.ReadDir(dir)
-
-	if err != nil {
-		log.Panicln(err)
-	}
-	for _, f := range folders {
-		//parts := strings.Split(f.Name(), "\\")
-		fmt.Fprintln(view, f.Name())
-	}
 }
