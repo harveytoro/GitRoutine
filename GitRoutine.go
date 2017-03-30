@@ -86,6 +86,8 @@ func main() {
 				repoNameView.Clear()
 				fmt.Fprintln(repoNameView, "Repository: "+repos.Name)
 				branchView.Clear()
+				logView.Clear()
+				logView.SetOrigin(0, 0)
 				fmt.Fprint(branchView, "Current branch: ")
 				executeCommand(branchView, "git > rev-parse --abbrev-ref HEAD")
 				executeCommand(logView, "git > -c color.ui=always log --all --decorate --oneline --graph")
@@ -104,6 +106,49 @@ func main() {
 		p.Clear()
 		p.SetCursor(6, 0)
 		fmt.Fprintln(p, "git > ")
+
+		return nil
+	})
+
+	g.SetKeybinding("", gocui.KeyArrowDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		v, _ = g.View(logNameView)
+		if err != nil {
+			return err
+		}
+		ox, oy := v.Origin()
+		v.SetOrigin(ox, oy+1)
+
+		return nil
+	})
+
+	g.SetKeybinding("", gocui.KeyArrowUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		v, _ = g.View(logNameView)
+		if err != nil {
+			return err
+		}
+		ox, oy := v.Origin()
+		v.SetOrigin(ox, oy-1)
+
+		return nil
+	})
+
+	g.SetKeybinding(terminalView, gocui.KeyBackspace2, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		x, _ := v.Cursor()
+		if x > 6 {
+			v.EditDelete(true)
+		}
+
+		return nil
+	})
+
+	g.SetKeybinding("", gocui.MouseWheelDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		return nil
+	})
+	g.SetKeybinding("", gocui.MouseWheelUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
 
 		return nil
 	})
@@ -175,6 +220,7 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 			return err
 		}
 		v.Title = "Log"
+		v.Wrap = true
 	}
 
 	if v, err := g.SetView(terminalView, ((maxX/2)/2)+1, maxY-4, maxX-1, maxY-2); err != nil {
