@@ -303,7 +303,7 @@ func splitSpaceQuotesAware(input string) []string {
 			inQuotes = !inQuotes
 		}
 
-		if element != " " || inQuotes {
+		if (element != " " || inQuotes) && element != "\"" {
 			currentString = currentString + element
 		}
 
