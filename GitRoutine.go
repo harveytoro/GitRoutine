@@ -248,15 +248,16 @@ func executeCommand(view *gocui.View, command string) error {
 		err       error
 	)
 
-	s := strings.Split(command, " ")
+	s := splitSpaceQuotesAware(command)
 
 	cmd := "git"
-
+	//	fmt.Printf("%v", s[2:])
 	execCmd := exec.Command(cmd, s[2:]...)
 	execCmd.Stderr = &errOutput
 	execCmd.Stdout = &output
 
 	err = execCmd.Run()
+
 	if err != nil {
 		log.Panicln(err)
 		return nil
@@ -287,4 +288,34 @@ func loadConfiguration() (configuration, error) {
 	}
 
 	return configuration, nil
+}
+
+func splitSpaceQuotesAware(input string) []string {
+
+	var ret []string
+	var currentString string
+	inQuotes := false
+	for i := 0; i < len(input); i++ {
+
+		element := input[i : i+1]
+
+		if element == "\"" {
+			inQuotes = !inQuotes
+		}
+
+		if element != " " || inQuotes {
+			currentString = currentString + element
+		}
+
+		if element == " " && !inQuotes || i == len(input)-1 {
+			ret = append(ret, currentString)
+			currentString = ""
+		}
+
+		if i == len(input)-1 && element == " " {
+			ret = append(ret, currentString)
+		}
+
+	}
+	return ret
 }
