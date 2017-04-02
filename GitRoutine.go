@@ -67,34 +67,9 @@ func main() {
 
 	g.SetKeybinding(repositoryView, gocui.MouseLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
 
-		p, err := g.View(summaryView)
-		repoNameView, err := g.View(repositoryNameView)
-		branchView, err := g.View(branchNameView)
-		logView, err := g.View(logNameView)
-		if err != nil {
-			return err
-		}
-
-		p.Clear()
-		p.SetCursor(0, 0)
-
 		_, cy := v.Cursor()
-		line, err := v.Line(cy)
-		for _, repos := range uiMgr.Repositories {
-			if repos.Name == line {
-				os.Chdir(repos.Path)
-				repoNameView.Clear()
-				fmt.Fprintln(repoNameView, "Repository: "+repos.Name)
-				branchView.Clear()
-				logView.Clear()
-				logView.SetOrigin(0, 0)
-				fmt.Fprint(branchView, "Current branch: ")
-				executeCommand(branchView, "git > rev-parse --abbrev-ref HEAD")
-				executeCommand(logView, "git > -c color.ui=always log --all --decorate --oneline --graph")
-			}
-		}
-
-		return nil
+		line, _ := v.Line(cy)
+		return uiMgr.setRepository(g, line)
 	})
 
 	g.SetKeybinding("", gocui.MouseLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
@@ -148,6 +123,17 @@ func main() {
 
 		return nil
 	})
+
+	g.SetKeybinding("", gocui.KeyArrowLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		return nil
+	})
+
+	g.SetKeybinding("", gocui.KeyArrowRight, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		return nil
+	})
+
 	g.SetKeybinding("", gocui.MouseWheelUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
 
 		return nil
@@ -162,6 +148,36 @@ func main() {
 	}
 }
 
+func (mgr *UIManager) setRepository(g *gocui.Gui, repoName string) error {
+
+	p, err := g.View(summaryView)
+	repoNameView, err := g.View(repositoryNameView)
+	branchView, err := g.View(branchNameView)
+	logView, err := g.View(logNameView)
+	if err != nil {
+		return err
+	}
+
+	p.Clear()
+	p.SetCursor(0, 0)
+
+	for _, repos := range mgr.Repositories {
+		if repos.Name == repoName {
+			os.Chdir(repos.Path)
+			repoNameView.Clear()
+			fmt.Fprintln(repoNameView, "Repository: "+repos.Name)
+			branchView.Clear()
+			logView.Clear()
+			logView.SetOrigin(0, 0)
+			fmt.Fprint(branchView, "Current branch: ")
+			executeCommand(branchView, "git > rev-parse --abbrev-ref HEAD")
+			executeCommand(logView, "git > -c color.ui=always log --all --decorate --oneline --graph")
+		}
+	}
+
+	return nil
+}
+
 func quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
 }
@@ -169,7 +185,7 @@ func quit(g *gocui.Gui, v *gocui.View) error {
 func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 
 	maxX, maxY := g.Size()
-
+	firstRepo := ""
 	if v, err := g.SetView(repositoryView, 1, 0, (maxX/2)/2, maxY-2); err != nil {
 
 		if err != gocui.ErrUnknownView {
@@ -181,6 +197,11 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 		v.SelBgColor = gocui.ColorGreen
 
 		for _, repo := range mgr.Repositories {
+
+			if firstRepo == "" {
+				firstRepo = repo.Name
+			}
+
 			fmt.Fprintln(v, repo.Name)
 		}
 	}
@@ -193,7 +214,6 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 
 		v.Title = "Summary"
 		v.Autoscroll = true
-
 	}
 
 	if v, err := g.SetView(repositoryNameView, ((maxX/2)/2)+1, (maxY/2)+1, (maxX+((maxX/2)/2)+1)/2, (maxY/2)+3); err != nil {
@@ -236,7 +256,7 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 	}
 
 	g.SetCurrentView(terminalView)
-
+	mgr.setRepository(g, firstRepo)
 	return nil
 }
 
