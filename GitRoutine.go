@@ -70,110 +70,7 @@ func main() {
 
 	g.SetManagerFunc(uiMgr.layoutManager)
 
-	g.SetKeybinding(terminalView, gocui.KeyEnter, gocui.ModNone, func(g *gocui.Gui, _ *gocui.View) error {
-		v, err := g.View(terminalView)
-		if err != nil {
-			return err
-		}
-
-		inputTerminal := v.Buffer()
-		v.Clear()
-		fmt.Fprintln(v, commandInputPrefix)
-		v.SetCursor(6, 0)
-		p, err := g.View(summaryView)
-		if err != nil {
-			return err
-		}
-		p.SetCursor(0, 0)
-
-		err = executeCommand(p, strings.TrimSpace(inputTerminal))
-
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	g.SetKeybinding(repositoryView, gocui.MouseLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
-		_, cy := v.Cursor()
-		line, _ := v.Line(cy)
-		return uiMgr.setRepository(g, line)
-	})
-
-	g.SetKeybinding("", gocui.MouseLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
-		p, err := g.View(terminalView)
-		if err != nil {
-			return err
-		}
-		p.Clear()
-		p.SetCursor(6, 0)
-		fmt.Fprintln(p, commandInputPrefix)
-
-		return nil
-	})
-
-	g.SetKeybinding("", gocui.KeyArrowDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
-		v, _ = g.View(logView)
-		if err != nil {
-			return err
-		}
-		ox, oy := v.Origin()
-		v.SetOrigin(ox, oy+1)
-
-		return nil
-	})
-
-	g.SetKeybinding("", gocui.KeyArrowUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
-		v, _ = g.View(logView)
-		if err != nil {
-			return err
-		}
-		ox, oy := v.Origin()
-		v.SetOrigin(ox, oy-1)
-
-		return nil
-	})
-
-	g.SetKeybinding(terminalView, gocui.KeyBackspace2, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
-		x, _ := v.Cursor()
-		if x > 6 {
-			v.EditDelete(true)
-		}
-
-		return nil
-	})
-
-	g.SetKeybinding(terminalView, gocui.KeyBackspace, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
-		x, _ := v.Cursor()
-		if x > 6 {
-			v.EditDelete(true)
-		}
-
-		return nil
-	})
-
-	g.SetKeybinding("", gocui.MouseWheelDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-		return nil
-	})
-
-	g.SetKeybinding("", gocui.KeyArrowLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-		return nil
-	})
-
-	g.SetKeybinding("", gocui.KeyArrowRight, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-		return nil
-	})
-
-	g.SetKeybinding("", gocui.MouseWheelUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-		return nil
-	})
+	uiMgr.registerBindings(g)
 
 	if err := g.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, quit); err != nil {
 		log.Panicln(err)
@@ -223,6 +120,105 @@ func (mgr *uiManager) setRepository(g *gocui.Gui, repoName string) error {
 
 func quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
+}
+
+func (mgr *uiManager) registerBindings(g *gocui.Gui) {
+	g.SetKeybinding(terminalView, gocui.KeyEnter, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		inputTerminal := v.Buffer()
+		v.Clear()
+		fmt.Fprintln(v, commandInputPrefix)
+		v.SetCursor(6, 0)
+		p, err := g.View(summaryView)
+		if err != nil {
+			return err
+		}
+		p.SetCursor(0, 0)
+
+		err = executeCommand(p, strings.TrimSpace(inputTerminal))
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	g.SetKeybinding(repositoryView, gocui.MouseLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		_, cy := v.Cursor()
+		line, _ := v.Line(cy)
+		return mgr.setRepository(g, line)
+	})
+
+	g.SetKeybinding("", gocui.MouseLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		p, err := g.View(terminalView)
+		if err != nil {
+			return err
+		}
+		p.Clear()
+		p.SetCursor(6, 0)
+		fmt.Fprintln(p, commandInputPrefix)
+
+		return nil
+	})
+
+	g.SetKeybinding("", gocui.KeyArrowDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		v, err := g.View(logView)
+		if err != nil {
+			return err
+		}
+		ox, oy := v.Origin()
+		v.SetOrigin(ox, oy+1)
+
+		return nil
+	})
+
+	g.SetKeybinding("", gocui.KeyArrowUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		v, err := g.View(logView)
+		if err != nil {
+			return err
+		}
+		ox, oy := v.Origin()
+		v.SetOrigin(ox, oy-1)
+
+		return nil
+	})
+
+	g.SetKeybinding(terminalView, gocui.KeyBackspace2, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		x, _ := v.Cursor()
+		if x > 6 {
+			v.EditDelete(true)
+		}
+
+		return nil
+	})
+
+	g.SetKeybinding(terminalView, gocui.KeyBackspace, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+
+		x, _ := v.Cursor()
+		if x > 6 {
+			v.EditDelete(true)
+		}
+
+		return nil
+	})
+
+	g.SetKeybinding("", gocui.MouseWheelDown, gocui.ModNone, mgr.noActionKeyboardBinding)
+
+	g.SetKeybinding("", gocui.KeyArrowLeft, gocui.ModNone, mgr.noActionKeyboardBinding)
+
+	g.SetKeybinding("", gocui.KeyArrowRight, gocui.ModNone, mgr.noActionKeyboardBinding)
+
+	g.SetKeybinding("", gocui.MouseWheelUp, gocui.ModNone, mgr.noActionKeyboardBinding)
+}
+
+func (mgr *uiManager) noActionKeyboardBinding(g *gocui.Gui, v *gocui.View) error {
+	return nil
 }
 
 func (mgr *uiManager) layoutManager(g *gocui.Gui) error {
