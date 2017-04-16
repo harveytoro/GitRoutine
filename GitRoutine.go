@@ -13,22 +13,50 @@ import (
 	"github.com/jroimartin/gocui"
 )
 
-const repositoryView string = "repositoryView"
-const summaryView string = "summaryView"
-const terminalView string = "terminalView"
-const repositoryNameView string = "repositoryNameView"
-const branchNameView string = "branchNameView"
-const logNameView string = "logNameView"
+const (
+	repositoryView         = "repositoryView"
+	summaryView            = "summaryView"
+	terminalView           = "terminalView"
+	selectedRepositoryView = "selectedRepositoryView"
+	currentBranchView      = "currentBranchView"
+	logView                = "logView"
 
-type UIManager struct {
+	repositoryViewTitle = "Repositories"
+	summaryViewTitle    = "Summary"
+	logViewTitle        = "Log"
+	terminalViewTitle   = "Terminal"
+
+	selectedRepositoryViewPrefix = "Repository: "
+	currentBranchViewPrefix      = "Current branch: "
+
+	executableCommand    = "git"
+	clearSummaryCommand  = "clear"
+	commandInputPrefix   = "git > "
+	currentBranchCommand = "git > rev-parse --abbrev-ref HEAD"
+	logCommand           = "git > -c color.ui=always log --all --decorate --oneline --graph"
+
+	configurationFileName = "config.json"
+)
+
+type uiManager struct {
 	configuration
+	hasLoaded bool
+}
+
+type repository struct {
+	Name string
+	Path string
+}
+
+type configuration struct {
+	Repositories []repository
 }
 
 func main() {
 
 	config, _ := loadConfiguration()
 
-	uiMgr := &UIManager{}
+	uiMgr := &uiManager{}
 	uiMgr.configuration = config
 
 	g, err := gocui.NewGui(gocui.OutputNormal)
@@ -41,6 +69,7 @@ func main() {
 	g.Mouse = true
 
 	g.SetManagerFunc(uiMgr.layoutManager)
+
 	g.SetKeybinding(terminalView, gocui.KeyEnter, gocui.ModNone, func(g *gocui.Gui, _ *gocui.View) error {
 		v, err := g.View(terminalView)
 		if err != nil {
@@ -49,12 +78,13 @@ func main() {
 
 		inputTerminal := v.Buffer()
 		v.Clear()
-		fmt.Fprintln(v, "git > ")
+		fmt.Fprintln(v, commandInputPrefix)
 		v.SetCursor(6, 0)
 		p, err := g.View(summaryView)
 		if err != nil {
 			return err
 		}
+		p.SetCursor(0, 0)
 
 		err = executeCommand(p, strings.TrimSpace(inputTerminal))
 
@@ -80,14 +110,14 @@ func main() {
 		}
 		p.Clear()
 		p.SetCursor(6, 0)
-		fmt.Fprintln(p, "git > ")
+		fmt.Fprintln(p, commandInputPrefix)
 
 		return nil
 	})
 
 	g.SetKeybinding("", gocui.KeyArrowDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
 
-		v, _ = g.View(logNameView)
+		v, _ = g.View(logView)
 		if err != nil {
 			return err
 		}
@@ -99,7 +129,7 @@ func main() {
 
 	g.SetKeybinding("", gocui.KeyArrowUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
 
-		v, _ = g.View(logNameView)
+		v, _ = g.View(logView)
 		if err != nil {
 			return err
 		}
@@ -119,23 +149,29 @@ func main() {
 		return nil
 	})
 
-	g.SetKeybinding("", gocui.MouseWheelDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
+	g.SetKeybinding(terminalView, gocui.KeyBackspace, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
 
+		x, _ := v.Cursor()
+		if x > 6 {
+			v.EditDelete(true)
+		}
+
+		return nil
+	})
+
+	g.SetKeybinding("", gocui.MouseWheelDown, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	})
 
 	g.SetKeybinding("", gocui.KeyArrowLeft, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
 		return nil
 	})
 
 	g.SetKeybinding("", gocui.KeyArrowRight, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
 		return nil
 	})
 
 	g.SetKeybinding("", gocui.MouseWheelUp, gocui.ModNone, func(g *gocui.Gui, v *gocui.View) error {
-
 		return nil
 	})
 
@@ -148,12 +184,19 @@ func main() {
 	}
 }
 
-func (mgr *UIManager) setRepository(g *gocui.Gui, repoName string) error {
+func (mgr *uiManager) setRepository(g *gocui.Gui, repoName string) error {
+
+	if repoName == "" && !mgr.hasLoaded {
+		repoName = mgr.Repositories[0].Name
+		mgr.hasLoaded = true
+	} else if repoName == "" && mgr.hasLoaded {
+		return nil
+	}
 
 	p, err := g.View(summaryView)
-	repoNameView, err := g.View(repositoryNameView)
-	branchView, err := g.View(branchNameView)
-	logView, err := g.View(logNameView)
+	repoNameView, err := g.View(selectedRepositoryView)
+	branchView, err := g.View(currentBranchView)
+	logView, err := g.View(logView)
 	if err != nil {
 		return err
 	}
@@ -165,13 +208,13 @@ func (mgr *UIManager) setRepository(g *gocui.Gui, repoName string) error {
 		if repos.Name == repoName {
 			os.Chdir(repos.Path)
 			repoNameView.Clear()
-			fmt.Fprintln(repoNameView, "Repository: "+repos.Name)
+			fmt.Fprintln(repoNameView, selectedRepositoryViewPrefix+repos.Name)
 			branchView.Clear()
 			logView.Clear()
 			logView.SetOrigin(0, 0)
-			fmt.Fprint(branchView, "Current branch: ")
-			executeCommand(branchView, "git > rev-parse --abbrev-ref HEAD")
-			executeCommand(logView, "git > -c color.ui=always log --all --decorate --oneline --graph")
+			fmt.Fprint(branchView, currentBranchViewPrefix)
+			executeCommand(branchView, currentBranchCommand)
+			executeCommand(logView, logCommand)
 		}
 	}
 
@@ -182,26 +225,20 @@ func quit(g *gocui.Gui, v *gocui.View) error {
 	return gocui.ErrQuit
 }
 
-func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
+func (mgr *uiManager) layoutManager(g *gocui.Gui) error {
 
 	maxX, maxY := g.Size()
-	firstRepo := ""
 	if v, err := g.SetView(repositoryView, 1, 0, (maxX/2)/2, maxY-2); err != nil {
 
 		if err != gocui.ErrUnknownView {
 			return err
 		}
 
-		v.Title = "Repositories"
+		v.Title = repositoryViewTitle
 		v.Highlight = true
 		v.SelBgColor = gocui.ColorGreen
 
 		for _, repo := range mgr.Repositories {
-
-			if firstRepo == "" {
-				firstRepo = repo.Name
-			}
-
 			fmt.Fprintln(v, repo.Name)
 		}
 	}
@@ -212,34 +249,34 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 			return err
 		}
 
-		v.Title = "Summary"
+		v.Title = summaryViewTitle
 		v.Autoscroll = true
 	}
 
-	if v, err := g.SetView(repositoryNameView, ((maxX/2)/2)+1, (maxY/2)+1, (maxX+((maxX/2)/2)+1)/2, (maxY/2)+3); err != nil {
+	if v, err := g.SetView(selectedRepositoryView, ((maxX/2)/2)+1, (maxY/2)+1, (maxX+((maxX/2)/2)+1)/2, (maxY/2)+3); err != nil {
 
 		if err != gocui.ErrUnknownView {
 			return err
 		}
 
-		fmt.Fprintln(v, "Repository:")
+		fmt.Fprintln(v, selectedRepositoryViewPrefix)
 	}
 
-	if v, err := g.SetView(branchNameView, (maxX+((maxX/2)/2)+1)/2+1, (maxY/2)+1, maxX-1, (maxY/2)+3); err != nil {
+	if v, err := g.SetView(currentBranchView, (maxX+((maxX/2)/2)+1)/2+1, (maxY/2)+1, maxX-1, (maxY/2)+3); err != nil {
 
 		if err != gocui.ErrUnknownView {
 			return err
 		}
 
-		fmt.Fprintln(v, "Current branch:")
+		fmt.Fprintln(v, currentBranchViewPrefix)
 	}
 
-	if v, err := g.SetView(logNameView, ((maxX/2)/2)+1, (maxY/2)+4, maxX-1, (maxY - 5)); err != nil {
+	if v, err := g.SetView(logView, ((maxX/2)/2)+1, (maxY/2)+4, maxX-1, (maxY - 5)); err != nil {
 
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		v.Title = "Log"
+		v.Title = logViewTitle
 		v.Wrap = true
 	}
 
@@ -250,13 +287,13 @@ func (mgr *UIManager) layoutManager(g *gocui.Gui) error {
 		}
 
 		v.Editable = true
-		v.Title = "Terminal"
-		fmt.Fprintln(v, "git > ")
+		v.Title = terminalViewTitle
+		fmt.Fprintln(v, commandInputPrefix)
 		v.SetCursor(6, 0)
 	}
 
 	g.SetCurrentView(terminalView)
-	mgr.setRepository(g, firstRepo)
+	mgr.setRepository(g, "")
 	return nil
 }
 
@@ -270,8 +307,12 @@ func executeCommand(view *gocui.View, command string) error {
 
 	s := splitSpaceQuotesAware(command)
 
-	cmd := "git"
-	//	fmt.Printf("%v", s[2:])
+	if s[2] == clearSummaryCommand {
+		view.Clear()
+		return nil
+	}
+
+	cmd := executableCommand
 	execCmd := exec.Command(cmd, s[2:]...)
 	execCmd.Stderr = &errOutput
 	execCmd.Stdout = &output
@@ -279,7 +320,7 @@ func executeCommand(view *gocui.View, command string) error {
 	err = execCmd.Run()
 
 	if err != nil {
-		log.Panicln(err)
+		fmt.Fprintln(view, "Failed to execute command. Please try again.")
 		return nil
 	}
 
@@ -288,18 +329,9 @@ func executeCommand(view *gocui.View, command string) error {
 	return nil
 }
 
-type repository struct {
-	Name string
-	Path string
-}
-
-type configuration struct {
-	Repositories []repository
-}
-
 func loadConfiguration() (configuration, error) {
 
-	file, _ := os.Open("config.json")
+	file, _ := os.Open(configurationFileName)
 	decoder := json.NewDecoder(file)
 	configuration := configuration{}
 	err := decoder.Decode(&configuration)
@@ -335,7 +367,6 @@ func splitSpaceQuotesAware(input string) []string {
 		if i == len(input)-1 && element == " " {
 			ret = append(ret, currentString)
 		}
-
 	}
 	return ret
 }
